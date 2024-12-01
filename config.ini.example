@@ -1,0 +1,17 @@
+[general]
+timezone = America/New_York
+debug = True
+port = 9120
+
+[exchange]
+exchange = binance
+key = your exchange key
+secret = your exchange secret
+timeframe = 15m
+currency = USDT
+market = spot
+history_data = 2024-09-01T00:00:00Z
+
+[database]
+housekeeping_interval = 86400
+

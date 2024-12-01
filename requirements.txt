@@ -1,0 +1,6 @@
+ccxt==4.4.34
+quart==0.19.8
+pandas==2.2.3
+pandas_ta==0.4.19b0
+tortoise-orm==0.21.7
+numby==1.26.4
