@@ -60,7 +60,7 @@ app = Quart(__name__)
 @app.route("/api/v1/symbol/add/<symbol>", methods=["GET"])
 async def add_symbol(symbol):
     symbol = symbol.split(attributes.get("currency", "USDT"))[0]
-    symbol = f"{symbol}/{attributes.get("currency", "USDT")}"
+    symbol = f"{symbol}/{attributes.get('currency', 'USDT')}"
     response = await market.add_symbol(symbol)
     if not response:
         response = {"result": ""}
@@ -73,7 +73,7 @@ async def add_symbol(symbol):
 @app.route("/api/v1/symbol/remove/<symbol>", methods=["GET"])
 async def remove_symbol(symbol):
     symbol = symbol.split(attributes.get("currency", "USDT"))[0]
-    symbol = f"{symbol}/{attributes.get("currency", "USDT")}"
+    symbol = f"{symbol}/{attributes.get('currency', 'USDT')}"
     status = await market.remove_symbol(symbol)
     if not status:
         response = {"result": ""}
