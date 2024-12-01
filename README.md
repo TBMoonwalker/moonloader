@@ -1,6 +1,6 @@
 # Moonloader
 ## Summary
-Moonloader is a service which scrapes exchange ticker data through websockets. It use this data to create various indicators and exposes them through websocket or REST apis.
+Moonloader is a service which scrapes exchange ticker data through websockets. It uses this data to create various indicators and exposes them through websocket or REST apis.
 
 ## Disclaimer
 **Moonloader is meant to be used for educational purposes only. Use with real funds at your own risk**
