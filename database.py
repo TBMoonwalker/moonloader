@@ -10,10 +10,10 @@ class Database:
     def __init__(self, db_file, loglevel, housekeeping_interval):
         self.db_housekeeping_interval = housekeeping_interval
         # Logging
-        self.logging = LoggerFactory.get_logger(
-            "logs/moonloader.log", "database", log_level=loglevel
+        Database.logging = LoggerFactory.get_logger(
+            "logs/database.log", "database", log_level=loglevel
         )
-        self.logging.info("Initialized")
+        Database.logging.info("Initialized")
         self.db_file = db_file
 
         # Class variables
@@ -36,11 +36,11 @@ class Database:
                 query = await Tickers.filter(
                     timestamp__lt=cleanup_timestamp.timestamp()
                 ).delete()
-                self.logging.info(
+                Database.logging.info(
                     f"Start housekeeping. Delete {query} entries older then {cleanup_timestamp}"
                 )
             except Exception as e:
-                self.logging.error(f"Error db housekeeping: {e}")
+                Database.logging.error(f"Error db housekeeping: {e}")
 
             await asyncio.sleep(self.db_housekeeping_interval)
 

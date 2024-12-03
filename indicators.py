@@ -9,7 +9,7 @@ from models import Tickers
 class Indicators:
     def __init__(self, loglevel):
         Indicators.logging = LoggerFactory.get_logger(
-            "logs/moonloader.log", "indicator", log_level=loglevel
+            "logs/indicators.log", "indicator", log_level=loglevel
         )
         Indicators.logging.info("Initialized")
 
@@ -51,7 +51,7 @@ class Indicators:
 
             return df_resample
         else:
-            self.logging.error("No data available for symbol")
+            Indicators.logging.error("No data available for symbol")
 
             return None
 
@@ -94,7 +94,7 @@ class Indicators:
             elif ema_20["status"] < ema_50["status"]:
                 status = "down"
         except:
-            self.logging.info(
+            Indicators.logging.info(
                 "EMA Cross cannot be calculated, because we don't have enough history data."
             )
 
@@ -123,12 +123,12 @@ class Indicators:
 
         try:
             if (price_action["status"] < -1) or (ema50["status"] > ema9["status"]):
-                self.logging.info("BTC-Pulse signaling downtrend")
+                Indicators.logging.info("BTC-Pulse signaling downtrend")
                 btc_pulse = "downtrend"
             else:
                 btc_pulse = "uptrend"
         except:
-            self.logging.info(
+            Indicators.logging.info(
                 "BTC Pulse cannot be calculated, because we don't have enough history data."
             )
 
@@ -237,7 +237,7 @@ class Indicators:
         for lvl in merged_support_levels:
             lower_bound = lvl * (1 - tolerance)
             upper_bound = lvl * (1 + tolerance)
-            self.logging.debug(
+            Indicators.logging.debug(
                 f"Symbol: {symbol}, Merged Support Level: {lvl}, Range: {lower_bound} - {upper_bound}, Last Price: {last_price}"
             )
             if lower_bound <= last_price <= upper_bound:

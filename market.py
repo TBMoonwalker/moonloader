@@ -41,7 +41,7 @@ class Market:
         Market.status = True
         Market.symbols = []
         Market.logging = LoggerFactory.get_logger(
-            "logs/moonloader.log", "market", log_level=loglevel
+            "logs/market.log", "market", log_level=loglevel
         )
         Market.logging.info("Initialized")
 
@@ -63,7 +63,7 @@ class Market:
             for symbol in symbols:
                 symbol_list.append([symbol, self.timeframe])
         else:
-            self.logging.error("Symbol list is empty!")
+            Market.logging.error("Symbol list is empty!")
 
         return symbol_list
 
@@ -73,7 +73,7 @@ class Market:
         try:
             tickers = await Symbols.all().distinct().values_list("symbol", flat=True)
         except Exception as e:
-            self.logging.error(f"Error fetching actual symbol list. Cause: {e}")
+            Market.logging.error(f"Error fetching actual symbol list. Cause: {e}")
 
         return tickers
 
@@ -108,7 +108,7 @@ class Market:
                 )
                 ohlcv.append(ticker)
         except Exception as e:
-            self.logging.error(
+            Market.logging.error(
                 f"Error fetching historical data from Exchange. Cause: {e}"
             )
             # Remove symbol if it cannot be retrieved by websocket
@@ -140,14 +140,14 @@ class Market:
                 ohlcv = await self.__get_historical_data(symbol)
                 await self.__process_data(ohlcv, bulk=True)
 
-                self.logging.info(f"Added Symbol {symbol}.")
+                Market.logging.info(f"Added Symbol {symbol}.")
             except Exception as e:
                 Market.logging.error(f"Error writing ticker data in to db: {e}")
                 return False
 
             return True
         else:
-            self.logging.info("Symbol already on the list.")
+            Market.logging.info("Symbol already on the list.")
 
             return False
 
@@ -176,19 +176,19 @@ class Market:
                     symbol, currency = symbol.split("/")
                     symbol = symbol + currency
                     query = await Tickers.filter(symbol=symbol).delete()
-                    self.logging.info(
+                    Market.logging.info(
                         f"Start removing symbol. Deleted {query} entries for {symbol}"
                     )
                     return True
                 except Exception as e:
-                    self.logging.error(f"Error removing symbol from database: {e}")
+                    Market.logging.error(f"Error removing symbol from database: {e}")
                     return False
             else:
-                self.logging.info("Symbol not on the list.")
+                Market.logging.info("Symbol not on the list.")
 
             return False
         else:
-            self.logging.info("No initial Symbols yet - please add one.")
+            Market.logging.info("No initial Symbols yet - please add one.")
 
             return False
 
@@ -268,7 +268,7 @@ class Market:
                         pass
                 else:
                     actual_symbols = Market.symbols
-                    self.logging.info(f"Actual symbol list: {actual_symbols}")
+                    Market.logging.info(f"Actual symbol list: {actual_symbols}")
                     continue
             else:
                 await asyncio.sleep(5)
