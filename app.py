@@ -1,4 +1,4 @@
-import re
+import os
 
 from config import Config
 from market import Market
@@ -20,6 +20,16 @@ if attributes.get("debug", False):
     loglevel = "DEBUG"
 else:
     loglevel = "INFO"
+
+# Create db and logs directories if they don't exist already
+try:
+    os.makedirs("logs", exist_ok=True)
+    os.makedirs("db", exist_ok=True)
+except:
+    print(
+        "Error creating 'db' and 'logs' directory - please create them manually and report it as a bug!"
+    )
+    exit(1)
 
 logging = LoggerFactory.get_logger("logs/moonloader.log", "main", log_level=loglevel)
 
