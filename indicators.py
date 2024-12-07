@@ -2,8 +2,10 @@ import pandas as pd
 import pandas_ta as ta
 import numpy as np
 
+from datetime import datetime, timedelta
 from logger import LoggerFactory
-from models import Tickers
+from models import Tickers, Global
+from scipy.stats import linregress
 
 
 class Indicators:
@@ -177,6 +179,39 @@ class Indicators:
 
         sma = df_resample.ta.sma(length=20).dropna().iloc[-1]
         return {"status": sma}
+
+    async def get_stablecoin_dominance(self):
+        begin_week = (
+            datetime.now() + timedelta(days=(0 - datetime.now().weekday()))
+        ).date()
+
+        # Stablecoin dominance
+        try:
+            global_data = await Global.filter(
+                date__gt=begin_week, indicator="stablecoin_dominance"
+            ).values_list("value", flat=True)
+            if len(global_data) >= 7:
+                days = np.arange(1, len(global_data) + 1)
+
+                # Linear Regression
+                slope, intercept, r_value, p_value, std_err = linregress(
+                    days, global_data
+                )
+                trend = (
+                    "uptrend" if slope > 0 else "downtrend" if slope < 0 else "neutral"
+                )
+
+                return {"status": trend}
+            else:
+                Indicators.logging.debug(f"Available stablecoin data: {global_data}")
+                Indicators.logging.error(
+                    "Week data for Stablecoin dominance indicator not reached yet."
+                )
+                return {"status": "not enough data"}
+        except Exception as e:
+            Indicators.logging.error(
+                f"Error getting stablecoin dominance for the week: {e}"
+            )
 
     async def detect_support_levels(
         self,

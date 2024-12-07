@@ -3,6 +3,7 @@ import os
 from config import Config
 from market import Market
 from database import Database
+from cmc import Cmc
 from logger import LoggerFactory
 from indicators import Indicators
 from quart import Quart
@@ -57,6 +58,9 @@ market = Market(
     timeframe=attributes.get("timeframe", "1m"),
     history_data=attributes.get("history_data", None),
 )
+
+# Initialize Global module
+cmc = Cmc(cmc_api_key=attributes.get("cmc_api_key"), loglevel=loglevel)
 
 # Initialize app
 app = Quart(__name__)
@@ -155,16 +159,25 @@ async def support_level(symbol, timerange, numlevels):
     return response
 
 
+@app.route("/api/v1/indicators/marketstate/stablecoin_dominance", methods=["GET"])
+async def stablecoin_dominance():
+    response = await indicators.get_stablecoin_dominance()
+
+    return response
+
+
 @app.before_serving
 async def startup():
     await database.init()
 
     app.add_background_task(database.cleanup)
     app.add_background_task(market.watch_tickers)
+    app.add_background_task(cmc.get_global_data)
 
 
 @app.after_serving
 async def shutdown():
+    await cmc.shutdown()
     await market.shutdown()
     await database.shutdown()
 
