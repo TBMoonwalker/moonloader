@@ -12,11 +12,11 @@ class Cmc:
         self.cmc_api_key = cmc_api_key
 
         # Class variables
-        Global.status = True
-        Global.logging = LoggerFactory.get_logger(
-            "logs/global.log", "market", log_level=loglevel
+        Cmc.status = True
+        Cmc.logging = LoggerFactory.get_logger(
+            "logs/cmc.log", "cmc", log_level=loglevel
         )
-        Global.logging.info("Initialized")
+        Cmc.logging.info("Initialized")
 
     @retry(wait=wait_fixed(600), stop=stop_after_attempt(10))
     async def __get_stablecoin_dominance(self):
@@ -33,9 +33,7 @@ class Cmc:
         try:
             query = await Global.filter(date=actual_date).values()
         except Exception as e:
-            Global.logging.error(
-                f"Error getting existing values from database. Cause {e}"
-            )
+            Cmc.logging.error(f"Error getting existing values from database. Cause {e}")
 
         if not query:
             response = requests.get(
@@ -46,9 +44,7 @@ class Cmc:
             try:
                 json_data = response.json()
             except Exception as e:
-                Global.logging.error(
-                    f"Error fetching CMC global market data, cause: {e}"
-                )
+                Cmc.logging.error(f"Error fetching CMC global market data, cause: {e}")
                 raise TryAgain
 
             if json_data["status"]["error_code"] == 0:
@@ -64,27 +60,27 @@ class Cmc:
                         indicator="stablecoin_dominance",
                         value=stablecoin_dominance,
                     )
-                    Global.logging.info(
+                    Cmc.logging.info(
                         f"Successfully added stablecoin dominance data for {date}"
                     )
                 except Exception as e:
-                    Global.logging.error(
+                    Cmc.logging.error(
                         f"Error importing stablecoin dominance data into database. Cause {e}. Trying again."
                     )
                     raise TryAgain
             else:
-                Global.logging.error(
+                Cmc.logging.error(
                     f"CMC global market data is garbage. Error: {json_data["status"]["error_code"]}. Trying again."
                 )
                 raise TryAgain
         else:
-            Global.logging.info("Data already fetched for today.")
+            Cmc.logging.info("Data already fetched for today.")
             result = True
 
         return result
 
     async def get_global_data(self):
-        while Global.status:
+        while Cmc.status:
             sleeptime = 60
             # Fetch stablecoin dominance
             stablecoin_dominance = await self.__get_stablecoin_dominance()
@@ -93,4 +89,4 @@ class Cmc:
             await asyncio.sleep(sleeptime)
 
     async def shutdown(self):
-        Global.status = False
+        Cmc.status = False
