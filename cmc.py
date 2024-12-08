@@ -61,7 +61,7 @@ class Cmc:
                         value=stablecoin_dominance,
                     )
                     Cmc.logging.info(
-                        f"Successfully added stablecoin dominance data for {date}"
+                        f"Successfully added stablecoin dominance data for {actual_date}"
                     )
                 except Exception as e:
                     Cmc.logging.error(
