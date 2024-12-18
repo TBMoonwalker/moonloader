@@ -44,7 +44,7 @@ database = Database(
 )
 
 # Initialize Indicators
-indicators = Indicators(loglevel=loglevel)
+indicators = Indicators(loglevel=loglevel, currency=attributes.get("currency", "USDT"))
 
 # Initialize Market module
 market = Market(
@@ -187,4 +187,4 @@ async def shutdown():
 ######################################################
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="9130")
+    app.run(host="0.0.0.0", port=attributes.get("port", "9130"))

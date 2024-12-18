@@ -9,14 +9,54 @@ from scipy.stats import linregress
 
 
 class Indicators:
-    def __init__(self, loglevel):
+    def __init__(self, loglevel, currency):
+        self.currency = currency
+
         Indicators.logging = LoggerFactory.get_logger(
             "logs/indicators.log", "indicator", log_level=loglevel
         )
         Indicators.logging.info("Initialized")
 
-    async def __get_ticker_from_symbol(self, symbol):
-        query = await Tickers.filter(symbol=symbol).values()
+    def __calculate_min_date(self, timerange, length):
+        # Convert timerange with buffer
+        match timerange:
+            case "1d":
+                length_minutes = 1440
+            case "4h":
+                length_minutes = 270
+            case "1h":
+                length_minutes = 100
+            case "15Min":
+                length_minutes = 30
+            case "10Min":
+                length_minutes = 25
+            case "5Min":
+                length_minutes = 25
+
+            # If an exact match is not confirmed, this last case will be used if provided
+            case _:
+                length_minutes = 15
+
+        # Input parameters
+        candle_length_minutes = length_minutes  # Candle length in minutes
+        num_candles = length  # Number of candles with buffer
+        end_time = datetime.now()
+
+        # Calculate the total look-back duration
+        lookback_duration = timedelta(minutes=candle_length_minutes * num_candles)
+
+        # Calculate the minimum date
+        min_date = end_time - lookback_duration
+
+        return min_date
+
+    async def __get_ticker_from_symbol(self, symbol, timerange, length):
+        start_date = self.__calculate_min_date(timerange, length)
+        query = (
+            await Tickers.filter(symbol=symbol)
+            .filter(timestamp__gt=start_date)
+            .values()
+        )
 
         if query:
             df = pd.DataFrame(query)
@@ -59,7 +99,7 @@ class Indicators:
 
     async def calculate_rsi(self, symbol, timerange):
         rsi = 0
-        df = await self.__get_ticker_from_symbol(symbol)
+        df = await self.__get_ticker_from_symbol(symbol, timerange, 14)
         df_resample = self.__resample_data(df, timerange)
 
         try:
@@ -71,7 +111,7 @@ class Indicators:
 
     async def calculate_price_action(self, symbol, timerange, length):
         price_action = 0
-        df = await self.__get_ticker_from_symbol(symbol)
+        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
         df_resample = self.__resample_data(df, timerange)
 
         try:
@@ -106,7 +146,7 @@ class Indicators:
 
     async def calculate_ema(self, symbol, timerange, length):
         ema = 0
-        df = await self.__get_ticker_from_symbol(symbol)
+        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
         df_resample = self.__resample_data(df, timerange)
 
         try:
@@ -119,9 +159,11 @@ class Indicators:
 
     async def calculate_btc_pulse(self, timerange):
         btc_pulse = ""
-        ema9 = await self.calculate_ema("BTCUSDT", timerange, 9)
-        ema50 = await self.calculate_ema("BTCUSDT", timerange, 50)
-        price_action = await self.calculate_price_action("BTCUSDT", timerange, 3)
+        ema9 = await self.calculate_ema(f"BTC{self.currency}", timerange, 9)
+        ema50 = await self.calculate_ema(f"BTC{self.currency}", timerange, 50)
+        price_action = await self.calculate_price_action(
+            f"BTC{self.currency}", timerange, 3
+        )
 
         try:
             if (price_action["status"] < -1) or (ema50["status"] > ema9["status"]):
@@ -138,7 +180,7 @@ class Indicators:
 
     async def __calculate_sma_slope(self, symbol, timerange):
         sma_slope = 0
-        df = await self.__get_ticker_from_symbol(symbol)
+        df = await self.__get_ticker_from_symbol(symbol, timerange, 20)
         df_resample = self.__resample_data(df, timerange)
 
         try:
@@ -174,7 +216,7 @@ class Indicators:
         return sma_slope
 
     async def calculate_sma(self, symbol, timerange):
-        df = await self.__get_ticker_from_symbol(symbol)
+        df = await self.__get_ticker_from_symbol(symbol, timerange, 20)
         df_resample = self.__resample_data(df, timerange)
 
         sma = df_resample.ta.sma(length=20).dropna().iloc[-1]
@@ -213,6 +255,39 @@ class Indicators:
                 f"Error getting stablecoin dominance for the week: {e}"
             )
 
+    async def __detect_bullish_engulfing(self, symbol, timerange):
+        df = await self.__get_ticker_from_symbol(symbol, "15min", 200)
+        df_resample = self.__resample_data(df, "15min")
+
+        print(df_resample.columns)
+        df_resample.rename(
+            columns={
+                "timestamp": "Date",
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+            },
+            inplace=True,
+        )
+
+        # Apply the 'cdl_pattern' method for ENGULFING
+        # df["Engulfing"] = ta.cdl_pattern(df_resample, name="engulfing")
+        df_resample["Engulfing"] = ta.cdl_pattern(
+            open_=df_resample["Open"],
+            high=df_resample["High"],
+            low=df_resample["Low"],
+            close=df_resample["Close"],
+            name="engulfing",
+        )
+
+        # Interpretation:
+        # - Positive values indicate a bullish engulfing pattern.
+        # - Negative values indicate a bearish engulfing pattern.
+
+        # Print results
+        print(df_resample[["Date", "Open", "High", "Low", "Close", "Engulfing"]])
+
     async def detect_support_levels(
         self,
         symbol,
@@ -233,7 +308,8 @@ class Indicators:
             pd.DataFrame: The original DataFrame with a 'Support' column indicating if it's near a support level.
         """
 
-        actual_df = await self.__get_ticker_from_symbol(symbol)
+        # TODO - Calculate the length exactly for support levels
+        actual_df = await self.__get_ticker_from_symbol(symbol, timerange, 120)
         df_resample = self.__resample_data(actual_df, timerange)
 
         df = df_resample.copy()
@@ -277,5 +353,8 @@ class Indicators:
             )
             if lower_bound <= last_price <= upper_bound:
                 is_near_support = True
+
+        # Check if support is stable with bullish engulfing
+        await self.__detect_bullish_engulfing(symbol, timerange)
 
         return {"status": f"{is_near_support}"}
