@@ -27,7 +27,7 @@ class Indicators:
             case "1h":
                 length_minutes = 100
             case "15Min":
-                length_minutes = 30
+                length_minutes = 100
             case "10Min":
                 length_minutes = 25
             case "5Min":
@@ -354,7 +354,95 @@ class Indicators:
             if lower_bound <= last_price <= upper_bound:
                 is_near_support = True
 
-        # Check if support is stable with bullish engulfing
-        await self.__detect_bullish_engulfing(symbol, timerange)
-
         return {"status": f"{is_near_support}"}
+
+    async def find_optimal_buy_level(self, symbol, timerange):
+        """
+        Finds an optimal buy level based on indicators and timeranges.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing OHLCV data with 'Date', 'Open', 'High', 'Low', 'Close'.
+            timerange (str): Time range for analysis (e.g., "15min", "4h", "1d").
+            indicators_config (dict): Configuration for indicators.
+                Example: {"rsi": {"length": 14}, "ema": {"length": 50}}
+
+        Returns:
+            pd.DataFrame: DataFrame with buy signals and relevant columns.
+        """
+        actual_df = await self.__get_ticker_from_symbol(symbol, timerange, 300)
+        data = self.__resample_data(actual_df, timerange)
+
+        data.rename(
+            columns={
+                "timestamp": "Date",
+                "open": "Open",
+                "high": "High",
+                "low": "Low",
+                "close": "Close",
+                "volume": "Volume",
+            },
+            inplace=True,
+        )
+
+        # Resample data to match the desired timerange
+        data = (
+            data.set_index("Date")
+            .resample(timerange)
+            .agg(
+                {
+                    "Open": "first",
+                    "High": "max",
+                    "Low": "min",
+                    "Close": "last",
+                    "Volume": "sum",
+                }
+            )
+            .dropna()
+            .reset_index()
+        )
+
+        # Add indicators based on configuration
+        data["RSI"] = ta.rsi(data["Close"], length=14)
+        data[f"EMA_9"] = ta.ema(data["Close"], length=9)
+        data[f"EMA_50"] = ta.ema(data["Close"], length=50)
+
+        # Calculate percentage difference
+        data["EMA_Diff_Percent"] = (
+            (data[f"EMA_9"] - data[f"EMA_50"]) / data[f"EMA_50"]
+        ) * 100
+
+        # Identify potential reversal signals
+        data["Reversal_Signal"] = (data["EMA_Diff_Percent"].shift(1) < 0) & (
+            data["EMA_Diff_Percent"] >= 0
+        ) | (  # Bullish crossover
+            data["EMA_Diff_Percent"].shift(1) > 0
+        ) & (
+            data["EMA_Diff_Percent"] <= 0
+        )  # Bearish crossover
+
+        # Filter by threshold (optional)
+        data["Strong_Reversal"] = abs(data["EMA_Diff_Percent"]) > 0.5
+
+        data["Pattern"] = ta.cdl_pattern(
+            open_=data["Open"],
+            high=data["High"],
+            low=data["Low"],
+            close=data["Close"],
+            name="engulfing",
+        )
+
+        print(data.to_string())
+
+        # Buy signal conditions
+        data["Buy_Signal"] = (
+            (data["RSI"] < 30)  # RSI is oversold
+            & data["Reversal_Signal"]
+            & (data["Pattern"] == 100)  # Bullish candlestick pattern (e.g., Engulfing)
+        )
+
+        # Filter rows with Buy signals
+        buy_signals = data[data["Buy_Signal"] == True]
+
+        print(buy_signals)
+
+        return {"status": f"{buy_signals}"}

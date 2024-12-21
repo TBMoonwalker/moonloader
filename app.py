@@ -166,6 +166,13 @@ async def stablecoin_dominance():
     return response
 
 
+@app.route("/api/v1/indicators/buy_signal/<symbol>/<timerange>", methods=["GET"])
+async def buy_signal(symbol, timerange):
+    response = await indicators.find_optimal_buy_level(symbol, timerange)
+
+    return response
+
+
 @app.before_serving
 async def startup():
     await database.init()
