@@ -27,7 +27,7 @@ class Indicators:
             case "1h":
                 length_minutes = 100
             case "15Min":
-                length_minutes = 100
+                length_minutes = 45
             case "10Min":
                 length_minutes = 25
             case "5Min":
@@ -97,6 +97,38 @@ class Indicators:
 
             return None
 
+    async def calculate_ema_slope(self, symbol, timerange, length):
+        length = int(length)
+        ema_slope = ""
+        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
+        df_resample = self.__resample_data(df, timerange)
+
+        try:
+            # Calculate EMA
+            df_resample[f"ema_{length}"] = df_resample.ta.sma(length=length)
+
+            # Calculate EMA slope
+            df_resample[f"ema_slope_{length}"] = df_resample[f"ema_{length}"].diff()
+
+            slope = df_resample[f"ema_slope_{length}"].dropna().iloc[-1]
+
+            categories = ""
+            if slope:
+                if slope > 0:
+                    categories = "upward"
+                elif slope < 0:
+                    categories = "downward"
+                else:
+                    categories = "flat"
+
+            ema_slope = {"status": categories}
+        except Exception as e:
+            Indicators.logging.info(
+                f"EMA SLOPE cannot be calculated, because we don't have enough history data: {e}"
+            )
+
+        return ema_slope
+
     async def calculate_rsi(self, symbol, timerange):
         rsi = 0
         df = await self.__get_ticker_from_symbol(symbol, timerange, 14)
@@ -123,17 +155,17 @@ class Indicators:
         return {"status": price_action}
 
     async def calculate_ema_cross(self, symbol, timerange):
-        ema_20 = await self.calculate_ema(symbol, timerange, 20)
+        ema_9 = await self.calculate_ema(symbol, timerange, 9)
         ema_50 = await self.calculate_ema(symbol, timerange, 50)
 
         status = ""
 
-        Indicators.logging.debug(f"EMA20: {ema_20}, EMA50: {ema_50}")
+        Indicators.logging.debug(f"EMA20: {ema_9}, EMA50: {ema_50}")
 
         try:
-            if ema_20["status"] > ema_50["status"]:
+            if ema_9["status"] > ema_50["status"]:
                 status = "up"
-            elif ema_20["status"] < ema_50["status"]:
+            elif ema_9["status"] < ema_50["status"]:
                 status = "down"
         except:
             Indicators.logging.info(
