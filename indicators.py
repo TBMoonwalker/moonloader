@@ -129,6 +129,38 @@ class Indicators:
 
         return ema_slope
 
+    async def calculate_rsi_slope(self, symbol, timerange, length):
+        length = int(length)
+        rsi_slope = ""
+        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
+        df_resample = self.__resample_data(df, timerange)
+
+        try:
+            # Calculate RSI
+            df_resample[f"rsi_{length}"] = df_resample.ta.rsi(length=length)
+
+            # Calculate RSI slope
+            df_resample[f"rsi_slope_{length}"] = df_resample[f"rsi_{length}"].diff()
+
+            slope = df_resample[f"rsi_slope_{length}"].dropna().iloc[-1]
+
+            categories = ""
+            if slope:
+                if slope > 0:
+                    categories = "upward"
+                elif slope < 0:
+                    categories = "downward"
+                else:
+                    categories = "flat"
+
+            rsi_slope = {"status": categories}
+        except Exception as e:
+            Indicators.logging.info(
+                f"RSI SLOPE cannot be calculated, because we don't have enough history data: {e}"
+            )
+
+        return rsi_slope
+
     async def calculate_rsi(self, symbol, timerange):
         rsi = 0
         df = await self.__get_ticker_from_symbol(symbol, timerange, 14)

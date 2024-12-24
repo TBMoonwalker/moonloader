@@ -160,6 +160,15 @@ async def ema_slope(symbol, timerange, length):
 
 
 @app.route(
+    "/api/v1/indicators/rsi_slope/<symbol>/<timerange>/<length>", methods=["GET"]
+)
+async def rsi_slope(symbol, timerange, length):
+    response = await indicators.calculate_rsi_slope(symbol, timerange, length)
+
+    return response
+
+
+@app.route(
     "/api/v1/indicators/support/<symbol>/<timerange>/<numlevels>", methods=["GET"]
 )
 async def support_level(symbol, timerange, numlevels):
