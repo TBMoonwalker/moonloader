@@ -6,7 +6,6 @@ from data import Data
 from datetime import datetime, timedelta
 from logger import LoggerFactory
 from models import Global
-from stockstats import StockDataFrame as Sdf
 from scipy.stats import linregress
 
 
