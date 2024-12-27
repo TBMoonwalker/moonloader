@@ -65,8 +65,6 @@ class Indicators:
         try:
             if df is None:
                 df = await self.data.get_data_for_pair(symbol, timerange, length)
-
-            print("TEST3")
             rsi = df.ta.rsi(length=length)
             rsi_slope = rsi.diff()
             rsi_last_slope = rsi_slope.dropna().iloc[-1]
