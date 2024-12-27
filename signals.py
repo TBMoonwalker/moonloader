@@ -33,10 +33,10 @@ class Signals:
                 symbol, market = symbol.split("/")
                 symbol = symbol + market
                 # Get Dataframe
-                df = await self.data.get_data_for_pair(symbol, "1h", 25)
+                df = await self.data.get_data_for_pair(symbol, "1h", 24)
                 # Signal calculation values
                 volume_24h = await self.indicators.calculate_24h_volume_data(
-                    df, symbol, "1h", 25
+                    df, symbol, "1h", 24
                 )
                 rsi_slope = await self.indicators.calculate_rsi_slope(
                     df, symbol, "15min", 14

@@ -125,7 +125,7 @@ async def status_symbol():
 @app.route("/api/v1/indicators/rsi/<symbol>/<timerange>/<length>", methods=["GET"])
 async def rsi(symbol, timerange, length):
     df = None
-    response = await indicators.calculate_rsi(df, symbol, timerange, length)
+    response = await indicators.calculate_rsi(df, symbol, timerange, int(length))
 
     return response
 
@@ -147,7 +147,7 @@ async def ema_cross(symbol, timerange):
 
 @app.route("/api/v1/indicators/ema/<symbol>/<timerange>/<length>", methods=["GET"])
 async def ema(symbol, timerange, length):
-    response = await indicators.calculate_ema(symbol, timerange, length)
+    response = await indicators.calculate_ema(symbol, timerange, int(length))
 
     return response
 
@@ -171,7 +171,7 @@ async def sma_slope(symbol, timerange):
 )
 async def ema_slope(symbol, timerange, length):
     df = None
-    response = await indicators.calculate_ema_slope(df, symbol, timerange, length)
+    response = await indicators.calculate_ema_slope(df, symbol, timerange, int(length))
 
     return response
 
@@ -181,7 +181,7 @@ async def ema_slope(symbol, timerange, length):
 )
 async def rsi_slope(symbol, timerange, length):
     df = None
-    response = await indicators.calculate_rsi_slope(df, symbol, timerange, length)
+    response = await indicators.calculate_rsi_slope(df, symbol, timerange, int(length))
 
     return response
 

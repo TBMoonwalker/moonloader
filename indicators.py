@@ -39,9 +39,7 @@ class Indicators:
     async def calculate_ema_slope(self, df, symbol, timerange, length):
         try:
             if df is None:
-                df_raw = await self.data.get_data_for_pair(
-                    symbol, timerange, length + 5
-                )
+                df_raw = await self.data.get_data_for_pair(symbol, timerange, length)
             else:
                 df_raw = df
             df = self.data.resample_data(df_raw, timerange)
@@ -66,11 +64,9 @@ class Indicators:
     async def calculate_rsi_slope(self, df, symbol, timerange, length):
         try:
             if df is None:
-                df_raw = await self.data.get_data_for_pair(
-                    symbol, timerange, length + 5
-                )
-            else:
-                df_raw = df
+                df = await self.data.get_data_for_pair(symbol, timerange, length)
+
+            print("TEST3")
             rsi = df.ta.rsi(length=length)
             rsi_slope = rsi.diff()
             rsi_last_slope = rsi_slope.dropna().iloc[-1]

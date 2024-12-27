@@ -22,17 +22,25 @@ class Data:
             data = []
             symbols = await self.get_symbols()
             for symbol in symbols:
-                symbol, market = symbol.split("/")
-                symbol = symbol + market
-                # Get Dataframe
-                df = await self.get_data_for_pair(symbol, "15Min", 1)
-                actual_date = datetime.now(tz=None)
-                last_candle_date = df["timestamp"].dropna().iloc[-1].tz_localize(None)
-                time_difference = actual_date - last_candle_date
-                if time_difference > timedelta(minutes=30):
-                    Data.logging.error(
-                        f"Old data found for {symbol}, Actual date: {actual_date}, Latest candle date: {last_candle_date} - Check websocket subscription"
+                try:
+                    symbol, market = symbol.split("/")
+                    symbol = symbol + market
+                    # Get Dataframe
+                    df = await self.get_data_for_pair(symbol, "15min", 1)
+                    actual_date = datetime.now(tz=None)
+                    last_candle_date = (
+                        df["timestamp"].dropna().iloc[-1].tz_localize(None)
                     )
+                    time_difference = actual_date - last_candle_date
+                    if time_difference > timedelta(minutes=30):
+                        Data.logging.error(
+                            f"Old data found for {symbol}, Actual date: {actual_date}, Latest candle date: {last_candle_date} - Check websocket subscription"
+                        )
+                except Exception as e:
+                    Data.logging.error(
+                        f"No data available yet for {symbol} or data is to old. If this message exceeds 30 minutes check the websocket connection. Waiting for data ..."
+                    )
+
             await asyncio.sleep(60)
 
     async def get_symbols(self):
@@ -54,11 +62,11 @@ class Data:
                 length_minutes = 480
             case "1h":
                 length_minutes = 120
-            case "15Min":
+            case "15min":
                 length_minutes = 30
-            case "10Min":
+            case "10min":
                 length_minutes = 20
-            case "5Min":
+            case "5min":
                 length_minutes = 10
 
             # If an exact match is not confirmed, this last case will be used if provided
@@ -118,7 +126,7 @@ class Data:
 
             return df_resample
         else:
-            Data.logging.error("No data available for symbol")
+            Data.logging.error("No historic data available yet for symbol")
 
             return None
 

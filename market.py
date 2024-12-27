@@ -1,4 +1,5 @@
 import ccxt.pro as ccxtpro
+import ccxt as ccxt
 import asyncio
 import json
 import re
@@ -82,7 +83,6 @@ class Market:
                 ohlcv_data.extend(new_ohlcv)
                 if len(new_ohlcv) != 1000:
                     break
-            # print(ohlcv)
             symbol, market = symbol.split("/")
 
             for ticker in ohlcv_data:
@@ -97,48 +97,48 @@ class Market:
                     volume=ticker[5],
                 )
                 ohlcv.append(ticker)
+            return ohlcv
+        except ccxt.NetworkError as e:
+            Market.logging.error(
+                f"Error fetching historical data from Exchange due to a network error: {e}"
+            )
+        except ccxt.ExchangeError as e:
+            Market.logging.error(
+                f"Error fetching historical data from Exchange due to an exchange error: {e}"
+            )
         except Exception as e:
             Market.logging.error(
                 f"Error fetching historical data from Exchange. Cause: {e}"
             )
-            # Remove symbol if it cannot be retrieved by websocket
-            match = re.search(r"\b[A-Z]+/[A-Z]+\b", e)
-            if match:
-                await self.remove_symbol(match.group())
-                Market.logging.error(
-                    f"Removed symbol, because it doesn't exist or is too new to catch"
-                )
-
-        return ohlcv
 
     async def add_symbol(self, symbol) -> bool:
         """Adding new symbol to the ticker list."""
         symbol_list = []
         symbols = await self.data.get_symbols()
+        ohlcv = []
 
         if symbols:
             for ticker in symbols:
                 symbol_list.append(ticker)
 
         if symbol not in symbol_list:
-            symbol_list.append(symbol)
-            Market.symbols = self.__convert_symbols(symbol_list)
             try:
-                await Symbols.create(symbol=symbol)
-
                 # add initial historic data into database
                 ohlcv = await self.__get_historical_data(symbol)
+                # Write history data to database
                 await self.__process_data(ohlcv, bulk=True)
-
+                # Add symbol to symbol table
+                await Symbols.create(symbol=symbol)
                 Market.logging.info(f"Added Symbol {symbol}.")
+                # Add symbol to websocket subscription
+                symbol_list.append(symbol)
+                Market.symbols = self.__convert_symbols(symbol_list)
+                return True
             except Exception as e:
                 Market.logging.error(f"Error writing ticker data in to db: {e}")
                 return False
-
-            return True
         else:
             Market.logging.info("Symbol already on the list.")
-
             return False
 
     async def status_symbols(self):
@@ -216,25 +216,40 @@ class Market:
 
     async def __fetch_delist_pairs(self):
         delist_pairs = []
-        pairs = await Market.exchange.sapi_get_spot_delist_schedule()
-        for pair in pairs[0]["symbols"]:
-            if re.match(f"^.*{self.currency}$", pair):
-                delist_pairs.append(pair)
-        self.logging.info(f"Delisting pairs: {delist_pairs}")
-        return delist_pairs
+        try:
+            pairs = await Market.exchange.sapi_get_spot_delist_schedule()
+            for pair in pairs[0]["symbols"]:
+                if re.match(f"^.*{self.currency}$", pair):
+                    delist_pairs.append(pair)
+            self.logging.info(f"Delisting pairs: {delist_pairs}")
+            return delist_pairs
+        except ccxt.NetworkError as e:
+            Market.logging.error(
+                f"Error fetching delisting data from Exchange due to a network error: {e}"
+            )
+        except ccxt.ExchangeError as e:
+            Market.logging.error(
+                f"Error fetching delisting data from Exchange due to an exchange error: {e}"
+            )
+        except Exception as e:
+            Market.logging.error(
+                f"Error fetching delisting data from Exchange. Cause: {e}"
+            )
 
     async def manage_symbols(self):
         while Market.status:
             delisted_pairs = await self.__fetch_delist_pairs()
             active_pairs = await self.__fetch_active_pairs()
             # add active pairs
-            for pair in active_pairs:
-                await self.add_symbol(pair)
+            if active_pairs:
+                for pair in active_pairs:
+                    await self.add_symbol(pair)
             # remove delisted pairs
-            for pair in delisted_pairs:
-                pair = pair.split(self.currency)[0]
-                pair = f"{pair}/{self.currency}"
-                await self.remove_symbol(pair)
+            if delisted_pairs:
+                for pair in delisted_pairs:
+                    pair = pair.split(self.currency)[0]
+                    pair = f"{pair}/{self.currency}"
+                    await self.remove_symbol(pair)
             await asyncio.sleep(600)
 
     async def watch_tickers(self):
@@ -258,16 +273,19 @@ class Market:
                         ohlcvs = await Market.exchange.watch_ohlcv_for_symbols(
                             Market.symbols
                         )
+                    except ccxt.NetworkError as e:
+                        Market.logging.error(
+                            f"Error watching websocket data from Exchange due to a network error: {e}"
+                        )
+                        continue
+                    except ccxt.ExchangeError as e:
+                        Market.logging.error(
+                            f"Error watching historical data from Exchange due to an exchange error: {e}"
+                        )
+                        continue
                     except Exception as e:
                         Market.logging.error(f"CCXT websocket error. Cause: {e}")
-                        # Remove symbol if it cannot be retrieved by websocket
-                        match = re.search(r"\b[A-Z]+/[A-Z]+\b", str(e))
-                        if match:
-                            await self.remove_symbol(match.group())
-                            Market.logging.error(
-                                f"Removed symbol, because it doesn't exist or is too new to catch"
-                            )
-                        pass
+                        continue
                     if ohlcvs:
                         for symbol, timeframes in ohlcvs.items():
                             for tf, ohlcv_list in timeframes.items():
