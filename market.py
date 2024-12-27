@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from logger import LoggerFactory
 from models import Tickers, Symbols
+from data import Data
 
 
 class Market:
@@ -22,12 +23,11 @@ class Market:
         history_data,
     ):
         self.currency = currency
-        self.market = market
         self.timeframe = timeframe
         self.history_data = history_data
-        self.exchange_id = exchange
-        self.exchange_class = getattr(ccxtpro, self.exchange_id)
-        Market.exchange = self.exchange_class(
+        self.data = Data(loglevel)
+        Market.exchange_class = getattr(ccxtpro, exchange)
+        Market.exchange = Market.exchange_class(
             {
                 "apiKey": key,
                 "secret": secret,
@@ -66,16 +66,6 @@ class Market:
             Market.logging.error("Symbol list is empty!")
 
         return symbol_list
-
-    async def __get_symbols(self):
-        """Get actual list of symbols from the database."""
-        tickers = None
-        try:
-            tickers = await Symbols.all().distinct().values_list("symbol", flat=True)
-        except Exception as e:
-            Market.logging.error(f"Error fetching actual symbol list. Cause: {e}")
-
-        return tickers
 
     async def __get_historical_data(self, symbol):
         ohlcv = []
@@ -124,7 +114,7 @@ class Market:
     async def add_symbol(self, symbol) -> bool:
         """Adding new symbol to the ticker list."""
         symbol_list = []
-        symbols = await self.__get_symbols()
+        symbols = await self.data.get_symbols()
 
         if symbols:
             for ticker in symbols:
@@ -161,7 +151,7 @@ class Market:
 
     async def remove_symbol(self, symbol):
         """Remove new symbol to the ticker list."""
-        symbols = await self.__get_symbols()
+        symbols = await self.data.get_symbols()
         symbol_list = []
 
         if symbols:
@@ -211,51 +201,63 @@ class Market:
         except Exception as e:
             Market.logging.error(f"Error writing ticker data in to db: {e}")
 
+    async def __fetch_active_pairs(self):
+        valid_pairs = []
+        await Market.exchange.load_markets()
+        pairs = Market.exchange.symbols
+        for pair in pairs:
+            if (
+                re.match(f"^.*/{self.currency}$", pair)
+                and Market.exchange.markets[pair]["active"]
+            ):
+                valid_pairs.append(pair)
+        self.logging.info(f"Active pairs: {valid_pairs}")
+        return valid_pairs
+
+    async def __fetch_delist_pairs(self):
+        delist_pairs = []
+        pairs = await Market.exchange.sapi_get_spot_delist_schedule()
+        for pair in pairs[0]["symbols"]:
+            if re.match(f"^.*{self.currency}$", pair):
+                delist_pairs.append(pair)
+        self.logging.info(f"Delisting pairs: {delist_pairs}")
+        return delist_pairs
+
+    async def manage_symbols(self):
+        while Market.status:
+            delisted_pairs = await self.__fetch_delist_pairs()
+            active_pairs = await self.__fetch_active_pairs()
+            # add active pairs
+            for pair in active_pairs:
+                await self.add_symbol(pair)
+            # remove delisted pairs
+            for pair in delisted_pairs:
+                pair = pair.split(self.currency)[0]
+                pair = f"{pair}/{self.currency}"
+                await self.remove_symbol(pair)
+            await asyncio.sleep(600)
+
     async def watch_tickers(self):
-        last_price = None
+        last_candles = {}
 
         # Initial list for symbols in database
-        symbols = await self.__get_symbols()
+        symbols = await self.data.get_symbols()
 
         if symbols:
             Market.symbols = self.__convert_symbols(symbols)
+            # Track the last candle for each symbol
+            last_candles = {symbol: None for symbol in symbols}
 
         actual_symbols = Market.symbols
         while Market.status:
             if Market.symbols:
                 # Reload on symbol list change
                 if Market.symbols == actual_symbols:
+                    ohlcvs = None
                     try:
-                        tickers = await Market.exchange.watch_ohlcv_for_symbols(
+                        ohlcvs = await Market.exchange.watch_ohlcv_for_symbols(
                             Market.symbols
                         )
-                        for symbol in tickers:
-                            for ticker in tickers[symbol]:
-                                timestamp = float(tickers[symbol][ticker][0][0])
-                                open = float(tickers[symbol][ticker][0][1])
-                                high = float(tickers[symbol][ticker][0][2])
-                                low = float(tickers[symbol][ticker][0][3])
-                                close = float(tickers[symbol][ticker][0][4])
-                                volume = float(tickers[symbol][ticker][0][5])
-
-                                if last_price:
-                                    # Only write to database on price change
-                                    if float(close) != float(last_price):
-                                        ohlcv = {
-                                            "timestamp": timestamp,
-                                            "symbol": symbol,
-                                            "open": open,
-                                            "high": high,
-                                            "low": low,
-                                            "close": close,
-                                            "volume": volume,
-                                        }
-                                        await self.__process_data(ohlcv)
-                                        last_price = close
-                                        Market.logging.debug(ohlcv)
-                                # First value on init
-                                else:
-                                    last_price = close
                     except Exception as e:
                         Market.logging.error(f"CCXT websocket error. Cause: {e}")
                         # Remove symbol if it cannot be retrieved by websocket
@@ -266,6 +268,49 @@ class Market:
                                 f"Removed symbol, because it doesn't exist or is too new to catch"
                             )
                         pass
+                    if ohlcvs:
+                        for symbol, timeframes in ohlcvs.items():
+                            for tf, ohlcv_list in timeframes.items():
+                                # Process the last candle from the list for the given symbol and timeframe
+                                if ohlcv_list:
+                                    current_candle = ohlcv_list[-1]
+                                    timestamp, open, high, low, close, volume = (
+                                        current_candle
+                                    )
+                                    # Check if it's a new candle for the current symbol
+                                    if symbol in last_candles:
+                                        if (
+                                            last_candles[symbol] is None
+                                            or last_candles[symbol][0] < timestamp
+                                        ):
+                                            # The previous candle for this symbol has closed; write it to the database
+                                            if last_candles[symbol]:
+                                                (
+                                                    timestamp,
+                                                    open,
+                                                    high,
+                                                    low,
+                                                    close,
+                                                    volume,
+                                                ) = last_candles[symbol]
+                                                ohlcv = {
+                                                    "timestamp": timestamp,
+                                                    "symbol": symbol,
+                                                    "open": open,
+                                                    "high": high,
+                                                    "low": low,
+                                                    "close": close,
+                                                    "volume": volume,
+                                                }
+                                                await self.__process_data(ohlcv)
+                                                Market.logging.debug(ohlcv)
+
+                                            last_candles[symbol] = current_candle
+                                    # Add new initial symbol for candle
+                                    else:
+                                        last_candles[symbol] = None
+                    else:
+                        self.logging.error("OHLCV data empty")
                 else:
                     actual_symbols = Market.symbols
                     Market.logging.info(f"Actual symbol list: {actual_symbols}")

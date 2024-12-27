@@ -1,12 +1,15 @@
 import os
+import asyncio
 
 from config import Config
 from market import Market
+from data import Data
 from database import Database
 from cmc import Cmc
 from logger import LoggerFactory
 from indicators import Indicators
-from quart import Quart
+from signals import Signals
+from quart import Quart, websocket
 
 
 ######################################################
@@ -38,6 +41,9 @@ logging = LoggerFactory.get_logger("logs/moonloader.log", "main", log_level=logl
 #                        Init                        #
 ######################################################
 
+# Initialize queues
+signal_queue = asyncio.Queue()
+
 # Initialize database
 database = Database(
     "moonloader.sqlite", loglevel, attributes.get("housekeeping_interval", 1)
@@ -45,6 +51,14 @@ database = Database(
 
 # Initialize Indicators
 indicators = Indicators(loglevel=loglevel, currency=attributes.get("currency", "USDT"))
+
+# Initialize Data
+data = Data(loglevel=loglevel)
+
+# Initialize Signals
+signals = Signals(
+    loglevel=loglevel, currency=attributes.get("currency", "USDT"), queue=signal_queue
+)
 
 # Initialize Market module
 market = Market(
@@ -108,9 +122,10 @@ async def status_symbol():
     return response
 
 
-@app.route("/api/v1/indicators/rsi/<symbol>/<timerange>", methods=["GET"])
-async def rsi(symbol, timerange):
-    response = await indicators.calculate_rsi(symbol, timerange)
+@app.route("/api/v1/indicators/rsi/<symbol>/<timerange>/<length>", methods=["GET"])
+async def rsi(symbol, timerange, length):
+    df = None
+    response = await indicators.calculate_rsi(df, symbol, timerange, length)
 
     return response
 
@@ -124,7 +139,8 @@ async def btc_pulse(timerange):
 
 @app.route("/api/v1/indicators/ema_cross/<symbol>/<timerange>", methods=["GET"])
 async def ema_cross(symbol, timerange):
-    response = await indicators.calculate_ema_cross(symbol, timerange)
+    df = None
+    response = await indicators.calculate_ema_cross(df, symbol, timerange)
 
     return response
 
@@ -154,7 +170,8 @@ async def sma_slope(symbol, timerange):
     "/api/v1/indicators/ema_slope/<symbol>/<timerange>/<length>", methods=["GET"]
 )
 async def ema_slope(symbol, timerange, length):
-    response = await indicators.calculate_ema_slope(symbol, timerange, length)
+    df = None
+    response = await indicators.calculate_ema_slope(df, symbol, timerange, length)
 
     return response
 
@@ -163,7 +180,8 @@ async def ema_slope(symbol, timerange, length):
     "/api/v1/indicators/rsi_slope/<symbol>/<timerange>/<length>", methods=["GET"]
 )
 async def rsi_slope(symbol, timerange, length):
-    response = await indicators.calculate_rsi_slope(symbol, timerange, length)
+    df = None
+    response = await indicators.calculate_rsi_slope(df, symbol, timerange, length)
 
     return response
 
@@ -191,6 +209,27 @@ async def buy_signal(symbol, timerange):
     return response
 
 
+@app.websocket("/api/v1/signals")
+async def websocket_signals():
+    try:
+        while True:
+            output = await signal_queue.get()
+            await websocket.send(str(output))
+    except Exception as e:
+        print(e)
+    except asyncio.CancelledError:
+        # Handle disconnection here
+        logging.info("Client disconnected")
+        raise
+
+
+@app.route("/api/v1/signals", methods=["GET"])
+async def catch_signals():
+    response = await signals.catch_new_signals()
+
+    return response
+
+
 @app.before_serving
 async def startup():
     await database.init()
@@ -198,10 +237,17 @@ async def startup():
     app.add_background_task(database.cleanup)
     app.add_background_task(market.watch_tickers)
     app.add_background_task(cmc.get_global_data)
+    app.add_background_task(data.data_sanity_check)
+    if attributes.get("activate_signals", False):
+        app.add_background_task(market.manage_symbols)
+        app.add_background_task(signals.catch_new_signals)
 
 
 @app.after_serving
 async def shutdown():
+    if attributes.get("activate_signals", False):
+        await signals.shutdown()
+    await data.shutdown()
     await cmc.shutdown()
     await market.shutdown()
     await database.shutdown()

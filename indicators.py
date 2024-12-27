@@ -2,181 +2,110 @@ import pandas as pd
 import pandas_ta as ta
 import numpy as np
 
+from data import Data
 from datetime import datetime, timedelta
 from logger import LoggerFactory
-from models import Tickers, Global
+from models import Global
+from stockstats import StockDataFrame as Sdf
 from scipy.stats import linregress
 
 
 class Indicators:
     def __init__(self, loglevel, currency):
         self.currency = currency
+        self.data = Data(loglevel)
 
         Indicators.logging = LoggerFactory.get_logger(
             "logs/indicators.log", "indicator", log_level=loglevel
         )
         Indicators.logging.info("Initialized")
 
-    def __calculate_min_date(self, timerange, length):
-        # Convert timerange with buffer
-        match timerange:
-            case "1d":
-                length_minutes = 1440
-            case "4h":
-                length_minutes = 270
-            case "1h":
-                length_minutes = 100
-            case "15Min":
-                length_minutes = 45
-            case "10Min":
-                length_minutes = 25
-            case "5Min":
-                length_minutes = 25
-
-            # If an exact match is not confirmed, this last case will be used if provided
-            case _:
-                length_minutes = 15
-
-        # Input parameters
-        candle_length_minutes = length_minutes  # Candle length in minutes
-        num_candles = length  # Number of candles with buffer
-        end_time = datetime.now()
-
-        # Calculate the total look-back duration
-        lookback_duration = timedelta(minutes=candle_length_minutes * num_candles)
-
-        # Calculate the minimum date
-        min_date = end_time - lookback_duration
-
-        return min_date
-
-    async def __get_ticker_from_symbol(self, symbol, timerange, length):
-        start_date = self.__calculate_min_date(timerange, length)
-        query = (
-            await Tickers.filter(symbol=symbol)
-            .filter(timestamp__gt=start_date)
-            .values()
-        )
-
-        if query:
-            df = pd.DataFrame(query)
-
-            df.dropna(inplace=True)
-        else:
-            df = None
-
-        return df
-
-    def __resample_data(self, ohlcv, timerange):
-        df = pd.DataFrame(ohlcv)
-        if not df.empty:
-
-            # Set datetime index
-            df = df.set_index("timestamp")
-
-            # Resample to the configured timerange
-            df_resample = df.resample(timerange).agg(
-                {
-                    "open": "first",
-                    "high": "max",
-                    "close": "last",
-                    "low": "min",
-                    "volume": "max",
-                }
-            )
-
-            # Reset index after resample
-            df_resample.reset_index(inplace=True)
-
-            # Clear empty values
-            df_resample.dropna(inplace=True)
-
-            return df_resample
-        else:
-            Indicators.logging.error("No data available for symbol")
-
-            return None
-
-    async def calculate_ema_slope(self, symbol, timerange, length):
-        length = int(length)
-        ema_slope = ""
-        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
-        df_resample = self.__resample_data(df, timerange)
-
+    async def calculate_24h_volume_data(self, df, symbol, timerange, length):
         try:
-            # Calculate EMA
-            df_resample[f"ema_{length}"] = df_resample.ta.sma(length=length)
+            if df is None:
+                df_raw = await self.data.get_data_for_pair(symbol, timerange, length)
+            else:
+                df_raw = df
+            df = self.data.resample_data(df_raw, timerange)
+            df_1d = df.tail(24)
+            quote_volume = df_1d.apply(
+                lambda row: (row["close"] * row["volume"]), axis=1
+            )
+            result = quote_volume.sum()
+        except Exception as e:
+            result = ""
+            Indicators.logging.error(f"Error getting 24h volume data. Cause: {e}")
+        return {"status": result}
 
-            # Calculate EMA slope
-            df_resample[f"ema_slope_{length}"] = df_resample[f"ema_{length}"].diff()
-
-            slope = df_resample[f"ema_slope_{length}"].dropna().iloc[-1]
-
-            categories = ""
-            if slope:
-                if slope > 0:
+    async def calculate_ema_slope(self, df, symbol, timerange, length):
+        try:
+            if df is None:
+                df_raw = await self.data.get_data_for_pair(
+                    symbol, timerange, length + 5
+                )
+            else:
+                df_raw = df
+            df = self.data.resample_data(df_raw, timerange)
+            ema = df.ta.ema(length=length)
+            ema_slope = ema.diff()
+            ema_last_slope = ema_slope.dropna().iloc[-1]
+            if ema_last_slope:
+                if ema_last_slope > 0:
                     categories = "upward"
-                elif slope < 0:
+                elif ema_last_slope < 0:
                     categories = "downward"
                 else:
                     categories = "flat"
-
-            ema_slope = {"status": categories}
+            result = categories
         except Exception as e:
+            result = ""
             Indicators.logging.info(
                 f"EMA SLOPE cannot be calculated, because we don't have enough history data: {e}"
             )
+        return {"status": result}
 
-        return ema_slope
-
-    async def calculate_rsi_slope(self, symbol, timerange, length):
-        length = int(length)
-        rsi_slope = ""
-        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
-        df_resample = self.__resample_data(df, timerange)
-
+    async def calculate_rsi_slope(self, df, symbol, timerange, length):
         try:
-            # Calculate RSI
-            df_resample[f"rsi_{length}"] = df_resample.ta.rsi(length=length)
-
-            # Calculate RSI slope
-            df_resample[f"rsi_slope_{length}"] = df_resample[f"rsi_{length}"].diff()
-
-            slope = df_resample[f"rsi_slope_{length}"].dropna().iloc[-1]
-
-            categories = ""
-            if slope:
-                if slope > 0:
+            if df is None:
+                df_raw = await self.data.get_data_for_pair(
+                    symbol, timerange, length + 5
+                )
+            else:
+                df_raw = df
+            rsi = df.ta.rsi(length=length)
+            rsi_slope = rsi.diff()
+            rsi_last_slope = rsi_slope.dropna().iloc[-1]
+            if rsi_last_slope:
+                if rsi_last_slope > 0:
                     categories = "upward"
-                elif slope < 0:
+                elif rsi_last_slope < 0:
                     categories = "downward"
                 else:
                     categories = "flat"
-
-            rsi_slope = {"status": categories}
+            result = categories
         except Exception as e:
+            result = ""
             Indicators.logging.info(
                 f"RSI SLOPE cannot be calculated, because we don't have enough history data: {e}"
             )
+        return {"status": result}
 
-        return rsi_slope
-
-    async def calculate_rsi(self, symbol, timerange):
-        rsi = 0
-        df = await self.__get_ticker_from_symbol(symbol, timerange, 14)
-        df_resample = self.__resample_data(df, timerange)
-
+    async def calculate_rsi(self, df, symbol, timerange, length):
         try:
-            rsi = df_resample.ta.rsi(length=14).dropna().iloc[-1]
+            if df is None:
+                df_raw = await self.data.get_data_for_pair(symbol, timerange, length)
+            else:
+                df_raw = df
+            df = self.data.resample_data(df_raw, timerange)
+            rsi = df.ta.rsi(length=length).dropna().iloc[-1]
         except:
             rsi = ""
-
         return {"status": rsi}
 
     async def calculate_price_action(self, symbol, timerange, length):
         price_action = 0
-        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
-        df_resample = self.__resample_data(df, timerange)
+        df = await self.data.get_data_for_pair(symbol, timerange, length)
+        df_resample = self.data.resample_data(df, timerange)
 
         try:
             price_action = (np.log(df_resample["close"].pct_change(length) + 1)) * 100
@@ -186,9 +115,9 @@ class Indicators:
 
         return {"status": price_action}
 
-    async def calculate_ema_cross(self, symbol, timerange):
-        ema_9 = await self.calculate_ema(symbol, timerange, 9)
-        ema_50 = await self.calculate_ema(symbol, timerange, 50)
+    async def calculate_ema_cross(self, df, symbol, timerange):
+        ema_9 = await self.calculate_ema(df, symbol, timerange, 9)
+        ema_50 = await self.calculate_ema(df, symbol, timerange, 50)
 
         status = ""
 
@@ -208,13 +137,15 @@ class Indicators:
 
         return ema_cross
 
-    async def calculate_ema(self, symbol, timerange, length):
-        ema = 0
-        df = await self.__get_ticker_from_symbol(symbol, timerange, length)
-        df_resample = self.__resample_data(df, timerange)
+    async def calculate_ema(self, df, symbol, timerange, length):
+        if df is None:
+            df_raw = await self.data.get_data_for_pair(symbol, timerange, length)
+        else:
+            df_raw = df
+        df = self.data.resample_data(df_raw, timerange)
 
         try:
-            ema = df_resample.ta.ema(length=length)
+            ema = df.ta.ema(length=length)
             ema = ema.dropna().iloc[-1]
         except:
             ema = ""
@@ -244,8 +175,8 @@ class Indicators:
 
     async def __calculate_sma_slope(self, symbol, timerange):
         sma_slope = 0
-        df = await self.__get_ticker_from_symbol(symbol, timerange, 20)
-        df_resample = self.__resample_data(df, timerange)
+        df = await self.data.get_data_for_pair(symbol, timerange, 20)
+        df_resample = self.data.resample_data(df, timerange)
 
         try:
             # Calculate the SMA
@@ -280,8 +211,8 @@ class Indicators:
         return sma_slope
 
     async def calculate_sma(self, symbol, timerange):
-        df = await self.__get_ticker_from_symbol(symbol, timerange, 20)
-        df_resample = self.__resample_data(df, timerange)
+        df = await self.data.get_data_for_pair(symbol, timerange, 20)
+        df_resample = self.data.resample_data(df, timerange)
 
         sma = df_resample.ta.sma(length=20).dropna().iloc[-1]
         return {"status": sma}
@@ -320,8 +251,8 @@ class Indicators:
             )
 
     async def __detect_bullish_engulfing(self, symbol, timerange):
-        df = await self.__get_ticker_from_symbol(symbol, "15min", 200)
-        df_resample = self.__resample_data(df, "15min")
+        df = await self.data.get_data_for_pair(symbol, "15min", 200)
+        df_resample = self.data.resample_data(df, "15min")
 
         print(df_resample.columns)
         df_resample.rename(
@@ -373,8 +304,8 @@ class Indicators:
         """
 
         # TODO - Calculate the length exactly for support levels
-        actual_df = await self.__get_ticker_from_symbol(symbol, timerange, 120)
-        df_resample = self.__resample_data(actual_df, timerange)
+        actual_df = await self.data.get_data_for_pair(symbol, timerange, 120)
+        df_resample = self.data.resample_data(actual_df, timerange)
 
         df = df_resample.copy()
 
@@ -433,8 +364,8 @@ class Indicators:
         Returns:
             pd.DataFrame: DataFrame with buy signals and relevant columns.
         """
-        actual_df = await self.__get_ticker_from_symbol(symbol, timerange, 300)
-        data = self.__resample_data(actual_df, timerange)
+        actual_df = await self.data.get_data_for_pair(symbol, timerange, 300)
+        data = self.data.resample_data(actual_df, timerange)
 
         data.rename(
             columns={
