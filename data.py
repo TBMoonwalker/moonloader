@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from logger import LoggerFactory
 from models import Symbols, Tickers
 from scipy.stats import linregress
-from stockstats import StockDataFrame as Sdf
 
 
 class Data:
