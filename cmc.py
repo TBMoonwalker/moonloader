@@ -70,7 +70,7 @@ class Cmc:
                     raise TryAgain
             else:
                 Cmc.logging.error(
-                    f"CMC global market data is garbage. Error: {json_data["status"]["error_code"]}. Trying again."
+                    f"CMC global market data is garbage. Error: {json_data['status']['error_code']}. Trying again."
                 )
                 raise TryAgain
         else:
