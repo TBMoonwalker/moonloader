@@ -146,9 +146,10 @@ class Indicators:
         return {"status": ema}
 
     async def calculate_btc_pulse(self, timerange):
+        df = None
         btc_pulse = ""
-        ema9 = await self.calculate_ema(f"BTC{self.currency}", timerange, 9)
-        ema50 = await self.calculate_ema(f"BTC{self.currency}", timerange, 50)
+        ema9 = await self.calculate_ema(df, f"BTC{self.currency}", timerange, 9)
+        ema50 = await self.calculate_ema(df, f"BTC{self.currency}", timerange, 50)
         price_action = await self.calculate_price_action(
             f"BTC{self.currency}", timerange, 3
         )
