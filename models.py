@@ -3,7 +3,7 @@ from tortoise.models import Model
 
 
 class Tickers(Model):
-    timestamp = fields.DatetimeField()
+    timestamp = fields.TextField()
     symbol = fields.TextField()
     open = fields.FloatField()
     high = fields.FloatField()

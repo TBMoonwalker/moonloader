@@ -86,9 +86,9 @@ class Market:
             symbol, market = symbol.split("/")
 
             for ticker in ohlcv_data:
-                timestamp = datetime.fromtimestamp(ticker[0] / 1000.0)
+                # timestamp = datetime.fromtimestamp(ticker[0] / 1000.0)
                 ticker = Tickers(
-                    timestamp=timestamp,
+                    timestamp=ticker[0],
                     symbol=symbol + market,
                     open=ticker[1],
                     high=ticker[2],
@@ -188,9 +188,9 @@ class Market:
                 await Tickers.bulk_create(ohlcv)
             else:
                 symbol, market = ohlcv["symbol"].split("/")
-                timestamp = datetime.fromtimestamp(ohlcv["timestamp"] / 1000.0)
+                # timestamp = datetime.fromtimestamp(ohlcv["timestamp"] / 1000.0)
                 await Tickers.create(
-                    timestamp=timestamp,
+                    timestamp=ohlcv["timestamp"],
                     symbol=symbol + market,
                     open=ohlcv["open"],
                     high=ohlcv["high"],

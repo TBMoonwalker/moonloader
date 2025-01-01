@@ -210,10 +210,13 @@ async def buy_signal(symbol, timerange):
     return response
 
 
-@app.route("/api/v1/data/ohlcv/<symbol>/<timerange>/<timestamp_start>", methods=["GET"])
+@app.route(
+    "/api/v1/data/ohlcv/<symbol>/<timerange>/<timestamp_start>/<offset>",
+    methods=["GET"],
+)
 @route_cors(allow_origin="*")
-async def get_ohlcv(symbol, timerange, timestamp_start):
-    response = await data.get_ohlcv_for_pair(symbol, timerange, timestamp_start)
+async def get_ohlcv(symbol, timerange, timestamp_start, offset):
+    response = await data.get_ohlcv_for_pair(symbol, timerange, timestamp_start, offset)
 
     return response
 

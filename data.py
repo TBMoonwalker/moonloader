@@ -1,7 +1,7 @@
 import pandas as pd
 import asyncio
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from logger import LoggerFactory
 from models import Symbols, Tickers
 from scipy.stats import linregress
@@ -27,10 +27,15 @@ class Data:
                     symbol = symbol + market
                     # Get Dataframe
                     df = await self.get_data_for_pair(symbol, "15min", 1)
-                    actual_date = datetime.now(tz=None)
-                    last_candle_date = (
-                        df["timestamp"].dropna().iloc[-1].tz_localize(None)
+                    # Convert unix timestamp to datetime object
+                    df["timestamp"] = pd.to_datetime(
+                        df["timestamp"].astype(float),
+                        utc=True,
+                        origin="unix",
+                        unit="ms",
                     )
+                    actual_date = datetime.now(UTC)
+                    last_candle_date = df["timestamp"].dropna().iloc[-1]
                     time_difference = actual_date - last_candle_date
                     if time_difference > timedelta(minutes=30):
                         Data.logging.error(
@@ -38,7 +43,7 @@ class Data:
                         )
                 except Exception as e:
                     Data.logging.error(
-                        f"No data available yet for {symbol} or data is to old. If this message exceeds 30 minutes check the websocket connection. Waiting for data ..."
+                        f"No data available yet for {symbol} or data is to old. If this message exceeds 30 minutes check the websocket connection. Waiting for data ... {e}"
                     )
 
             await asyncio.sleep(60)
@@ -83,26 +88,23 @@ class Data:
         # Calculate the minimum date
         min_date = end_time - lookback_duration
 
-        return min_date
+        return datetime.timestamp(min_date)
 
-    async def get_ohlcv_for_pair(self, pair, timerange, timestamp_start):
-        start_date = datetime.fromtimestamp(
-            # 600000 --> 60 minutes in milliseconds before
-            ((float(timestamp_start) - 600000) / 1000.0),
-            timezone.utc,
-        )
+    async def get_ohlcv_for_pair(self, pair, timerange, timestamp_start, offset):
+        # 600000 --> 60 minutes in milliseconds before
+        # start_date = datetime.fromtimestamp(((float(timestamp_start) - 600000) / 1000.0),UTC,)
+        start_timestamp = float(timestamp_start) - 60000
         ohlcv = {}
         query = (
             await Tickers.filter(symbol=pair)
-            .filter(timestamp__gt=start_date)
+            .filter(timestamp__gt=start_timestamp)
             .values("timestamp", "open", "high", "low", "close")
         )
 
         if query:
             df = pd.DataFrame(query)
-            df["time"] = df["timestamp"].astype(int) / 10**9
-            df["time"] = df["time"].astype(int)
-            df = df.drop("timestamp", axis=1)
+            df["time"] = df["timestamp"].astype(int) / 1000
+            df["time"] = df["time"] + 60 * int(offset)
             df.drop_duplicates(subset=["time"], inplace=True)
             df.rename(
                 columns={
@@ -136,6 +138,10 @@ class Data:
         df = pd.DataFrame(ohlcv)
         if not df.empty:
 
+            # Convert unix timestamp to datetime object
+            df["timestamp"] = pd.to_datetime(
+                df["timestamp"].astype(float), utc=True, origin="unix", unit="ms"
+            )
             # Set datetime index
             df = df.set_index("timestamp")
 
