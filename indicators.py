@@ -248,7 +248,6 @@ class Indicators:
         df = await self.data.get_data_for_pair(symbol, "15min", 200)
         df_resample = self.data.resample_data(df, "15min")
 
-        print(df_resample.columns)
         df_resample.rename(
             columns={
                 "timestamp": "Date",

@@ -85,6 +85,38 @@ class Data:
 
         return min_date
 
+    async def get_ohlcv_for_pair(self, pair, timerange, timestamp_start):
+        start_date = datetime.fromtimestamp(
+            # 600000 --> 60 minutes in milliseconds before
+            ((float(timestamp_start) - 600000) / 1000.0),
+            timezone.utc,
+        )
+        ohlcv = {}
+        query = (
+            await Tickers.filter(symbol=pair)
+            .filter(timestamp__gt=start_date)
+            .values("timestamp", "open", "high", "low", "close")
+        )
+
+        if query:
+            df = pd.DataFrame(query)
+            df["time"] = df["timestamp"].astype(int) / 10**9
+            df["time"] = df["time"].astype(int)
+            df = df.drop("timestamp", axis=1)
+            df.drop_duplicates(subset=["time"], inplace=True)
+            df.rename(
+                columns={
+                    "open": "open",
+                    "high": "high",
+                    "low": "low",
+                    "close": "close",
+                },
+                inplace=True,
+            )
+            ohlcv = df.to_json(orient="records")
+
+        return ohlcv
+
     async def get_data_for_pair(self, pair, timerange, length):
         start_date = self.__calculate_min_date(timerange, length)
         query = (

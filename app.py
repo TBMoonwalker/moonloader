@@ -10,6 +10,7 @@ from logger import LoggerFactory
 from indicators import Indicators
 from signals import Signals
 from quart import Quart, websocket
+from quart_cors import route_cors
 
 
 ######################################################
@@ -205,6 +206,14 @@ async def stablecoin_dominance():
 @app.route("/api/v1/indicators/buy_signal/<symbol>/<timerange>", methods=["GET"])
 async def buy_signal(symbol, timerange):
     response = await indicators.find_optimal_buy_level(symbol, timerange)
+
+    return response
+
+
+@app.route("/api/v1/data/ohlcv/<symbol>/<timerange>/<timestamp_start>", methods=["GET"])
+@route_cors(allow_origin="*")
+async def get_ohlcv(symbol, timerange, timestamp_start):
+    response = await data.get_ohlcv_for_pair(symbol, timerange, timestamp_start)
 
     return response
 
