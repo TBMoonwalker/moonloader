@@ -98,13 +98,13 @@ class Data:
         query = (
             await Tickers.filter(symbol=pair)
             .filter(timestamp__gt=start_timestamp)
-            .values("timestamp", "open", "high", "low", "close")
+            .values("timestamp", "open", "high", "low", "close", "volume")
         )
 
         if query:
-            df = pd.DataFrame(query)
-            df["time"] = df["timestamp"].astype(int) / 1000
-            df["time"] = df["time"] + 60 * int(offset)
+            df = self.resample_data(pd.DataFrame(query), timerange)
+
+            df["time"] = df["timestamp"].astype(int) + 60 * int(offset)
             df.drop_duplicates(subset=["time"], inplace=True)
             df.rename(
                 columns={
@@ -115,6 +115,8 @@ class Data:
                 },
                 inplace=True,
             )
+            df.drop("volume", axis=1, inplace=True)
+            df.drop("timestamp", axis=1, inplace=True)
             ohlcv = df.to_json(orient="records")
 
         return ohlcv
@@ -158,6 +160,10 @@ class Data:
 
             # Reset index after resample
             df_resample.reset_index(inplace=True)
+
+            # Convert datetime object back to a unix timestamp
+            df_resample["timestamp"] = df_resample["timestamp"].astype(int)
+            df_resample["timestamp"] = df_resample["timestamp"].div(10**9)
 
             # Clear empty values
             df_resample.dropna(inplace=True)
