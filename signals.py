@@ -54,7 +54,7 @@ class Signals:
                 # ema_cross = await self.indicators.calculate_ema_cross(
                 #     df, symbol, "15min"
                 # )
-                if rsi_14 <= 45 and ema_30_distance:
+                if rsi_14["status"] <= 45 and ema_30_distance["status"]:
                     data = {
                         "symbol": symbol,
                         "day_volume": self.__format(int(volume_24h["status"])),
