@@ -38,32 +38,28 @@ class Signals:
                 volume_24h = await self.indicators.calculate_24h_volume_data(
                     df, symbol, "1h", 24
                 )
-                rsi_slope = await self.indicators.calculate_rsi_slope(
-                    df, symbol, "15min", 14
+                # rsi_slope = await self.indicators.calculate_rsi_slope(
+                #     df, symbol, "15min", 14
+                # )
+                rsi_14 = await self.indicators.calculate_rsi(df, symbol, "15min", 14)
+                ema_30_distance = await self.indicators.calculate_ema_distance(
+                    df, symbol, "15min", 30
                 )
-                rsi = await self.indicators.calculate_rsi(df, symbol, "15min", 14)
-                ema_9_slope = await self.indicators.calculate_ema_slope(
-                    df, symbol, "15min", 9
-                )
-                ema_50_slope = await self.indicators.calculate_ema_slope(
-                    df, symbol, "15min", 9
-                )
-                ema_cross = await self.indicators.calculate_ema_cross(
-                    df, symbol, "15min"
-                )
-                if (
-                    ema_9_slope["status"] == "upward"
-                    and ema_50_slope["status"] == "upward"
-                    and rsi_slope["status"] == "upward"
-                ) and ema_cross["status"] == "up":
+                # ema_9_slope = await self.indicators.calculate_ema_slope(
+                #     df, symbol, "15min", 9
+                # )
+                # ema_50_slope = await self.indicators.calculate_ema_slope(
+                #     df, symbol, "15min", 9
+                # )
+                # ema_cross = await self.indicators.calculate_ema_cross(
+                #     df, symbol, "15min"
+                # )
+                if rsi_14 <= 45 and ema_30_distance:
                     data = {
                         "symbol": symbol,
                         "day_volume": self.__format(int(volume_24h["status"])),
-                        "rsi": rsi["status"],
-                        "rsi_slope": rsi_slope["status"],
-                        "ema_9_slope": ema_9_slope["status"],
-                        "ema_50_slope": ema_50_slope["status"],
-                        "ema_cross": ema_cross["status"],
+                        "rsi": rsi_14["status"],
+                        "ema_30_distance": ema_30_distance["status"],
                     }
 
                     await Signals.queue.put(data)
