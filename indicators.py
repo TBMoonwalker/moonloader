@@ -37,6 +37,7 @@ class Indicators:
         return {"status": result}
 
     async def calculate_ema_distance(self, df, symbol, timerange, length):
+        result = False
         try:
             if df is None:
                 df_raw = await self.data.get_data_for_pair(symbol, timerange, length)
@@ -53,7 +54,6 @@ class Indicators:
             if percentage_diff < 2:
                 result = True
         except Exception as e:
-            result = False
             Indicators.logging.info(
                 f"EMA Distance cannot be calculated, because we don't have enough history data: {e}"
             )
