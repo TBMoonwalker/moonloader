@@ -36,6 +36,29 @@ class Indicators:
             Indicators.logging.error(f"Error getting 24h volume data. Cause: {e}")
         return {"status": result}
 
+    async def calculate_ema_distance(self, df, symbol, timerange, length):
+        try:
+            if df is None:
+                df_raw = await self.data.get_data_for_pair(symbol, timerange, length)
+            else:
+                df_raw = df
+            df = self.data.resample_data(df_raw, timerange)
+            ema = df.ta.ema(length=length)
+            ema = ema.dropna().iloc[-1]
+            close_price = df["close"].dropna().iloc[-1]
+            percentage_diff = abs(close_price - ema) / ema * 100
+            Indicators.logging.debug(
+                f"close_price: {close_price}, ema: {ema}, percentage diff: {percentage_diff}"
+            )
+            if percentage_diff < 2:
+                result = True
+        except Exception as e:
+            result = False
+            Indicators.logging.info(
+                f"EMA Distance cannot be calculated, because we don't have enough history data: {e}"
+            )
+        return {"status": result}
+
     async def calculate_ema_slope(self, df, symbol, timerange, length):
         try:
             if df is None:

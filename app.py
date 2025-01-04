@@ -153,6 +153,28 @@ async def ema(symbol, timerange, length):
     return response
 
 
+@app.route(
+    "/api/v1/indicators/ema_slope/<symbol>/<timerange>/<length>", methods=["GET"]
+)
+async def ema_slope(symbol, timerange, length):
+    df = None
+    response = await indicators.calculate_ema_slope(df, symbol, timerange, int(length))
+
+    return response
+
+
+@app.route(
+    "/api/v1/indicators/ema_distance/<symbol>/<timerange>/<length>", methods=["GET"]
+)
+async def ema_distance(symbol, timerange, length):
+    df = None
+    response = await indicators.calculate_ema_distance(
+        df, symbol, timerange, int(length)
+    )
+
+    return response
+
+
 @app.route("/api/v1/indicators/sma/<symbol>/<timerange>", methods=["GET"])
 async def sma(symbol, timerange):
     response = await indicators.calculate_sma(symbol, timerange)
@@ -163,16 +185,6 @@ async def sma(symbol, timerange):
 @app.route("/api/v1/indicators/sma_slope/<symbol>/<timerange>", methods=["GET"])
 async def sma_slope(symbol, timerange):
     response = await indicators.categorize_sma_slope(symbol, timerange)
-
-    return response
-
-
-@app.route(
-    "/api/v1/indicators/ema_slope/<symbol>/<timerange>/<length>", methods=["GET"]
-)
-async def ema_slope(symbol, timerange, length):
-    df = None
-    response = await indicators.calculate_ema_slope(df, symbol, timerange, int(length))
 
     return response
 
