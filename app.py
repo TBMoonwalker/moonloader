@@ -51,7 +51,11 @@ database = Database(
 )
 
 # Initialize Indicators
-indicators = Indicators(loglevel=loglevel, currency=attributes.get("currency", "USDT"))
+indicators = Indicators(
+    loglevel=loglevel,
+    currency=attributes.get("currency", "USDT"),
+    timeframe=attributes.get("timeframe", "1m"),
+)
 
 # Initialize Data
 data = Data(loglevel=loglevel)

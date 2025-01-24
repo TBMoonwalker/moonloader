@@ -10,9 +10,10 @@ from scipy.stats import linregress
 
 
 class Indicators:
-    def __init__(self, loglevel, currency):
+    def __init__(self, loglevel, currency, timeframe):
         self.currency = currency
         self.data = Data(loglevel)
+        self.timeframe = timeframe
 
         Indicators.logging = LoggerFactory.get_logger(
             "logs/indicators.log", "indicator", log_level=loglevel
@@ -268,8 +269,8 @@ class Indicators:
             )
 
     async def __detect_bullish_engulfing(self, symbol, timerange):
-        df = await self.data.get_data_for_pair(symbol, "15min", 200)
-        df_resample = self.data.resample_data(df, "15min")
+        df = await self.data.get_data_for_pair(symbol, self.timeframe, 200)
+        df_resample = self.data.resample_data(df, "self.timeframe")
 
         df_resample.rename(
             columns={
@@ -373,7 +374,7 @@ class Indicators:
 
         Parameters:
             data (pd.DataFrame): DataFrame containing OHLCV data with 'Date', 'Open', 'High', 'Low', 'Close'.
-            timerange (str): Time range for analysis (e.g., "15min", "4h", "1d").
+            timerange (str): Time range for analysis (e.g., "self.timeframe", "4h", "1d").
             indicators_config (dict): Configuration for indicators.
                 Example: {"rsi": {"length": 14}, "ema": {"length": 50}}
 
