@@ -8,7 +8,7 @@ from indicators import Indicators
 class Signals:
     def __init__(self, loglevel, currency, queue):
         self.data = Data(loglevel)
-        self.indicators = Indicators(loglevel, currency)
+        self.indicators = Indicators(loglevel, currency, timeframe="15min")
 
         # Class variables
         Signals.status = True
