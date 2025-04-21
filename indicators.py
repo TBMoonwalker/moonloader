@@ -67,10 +67,7 @@ class Indicators:
             else:
                 df_raw = df
             df = self.data.resample_data(df_raw, timerange)
-            print(df)
             ema = talib.EMA(df["close"], timeperiod=length)
-            # ema = df.ta.ema(length=length)
-            print(ema)
             ema_slope = ema.diff()
             ema_last_slope = ema_slope.dropna().iloc[-1]
             if ema_last_slope:
@@ -93,16 +90,14 @@ class Indicators:
             if df is None:
                 df = await self.data.get_data_for_pair(symbol, timerange, length)
             rsi = talib.RSI(df["close"], timeperiod=length)
-            # rsi = df.ta.rsi(length=length)
             rsi_slope = rsi.diff()
             rsi_last_slope = rsi_slope.dropna().iloc[-1]
+            categories = "flat"
             if rsi_last_slope:
                 if rsi_last_slope > 0:
                     categories = "upward"
                 elif rsi_last_slope < 0:
                     categories = "downward"
-                else:
-                    categories = "flat"
             result = categories
         except Exception as e:
             result = ""
@@ -119,7 +114,6 @@ class Indicators:
                 df_raw = df
             df = self.data.resample_data(df_raw, timerange)
             rsi = talib.RSI(df["close"], timeperiod=length).dropna().iloc[-1]
-            # rsi = df.ta.rsi(length=length).dropna().iloc[-1]
         except:
             rsi = ""
         return {"status": rsi}
@@ -168,7 +162,6 @@ class Indicators:
 
         try:
             ema = talib.EMA(df["close"], timeperiod=length)
-            # ema = df.ta.ema(length=length)
             ema = ema.dropna().iloc[-1]
         except:
             ema = ""
