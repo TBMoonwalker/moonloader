@@ -2,9 +2,7 @@ import ccxt.pro as ccxtpro
 import ccxt as ccxt
 import asyncio
 import json
-import re
 
-from datetime import datetime
 from logger import LoggerFactory
 from models import Tickers, Symbols
 from data import Data
@@ -86,7 +84,6 @@ class Market:
             symbol, market = symbol.split("/")
 
             for ticker in ohlcv_data:
-                # timestamp = datetime.fromtimestamp(ticker[0] / 1000.0)
                 ticker = Tickers(
                     timestamp=ticker[0],
                     symbol=symbol + market,
@@ -188,7 +185,6 @@ class Market:
                 await Tickers.bulk_create(ohlcv)
             else:
                 symbol, market = ohlcv["symbol"].split("/")
-                # timestamp = datetime.fromtimestamp(ohlcv["timestamp"] / 1000.0)
                 await Tickers.create(
                     timestamp=ohlcv["timestamp"],
                     symbol=symbol + market,
@@ -200,57 +196,6 @@ class Market:
                 )
         except Exception as e:
             Market.logging.error(f"Error writing ticker data in to db: {e}")
-
-    async def __fetch_active_pairs(self):
-        valid_pairs = []
-        await Market.exchange.load_markets()
-        pairs = Market.exchange.symbols
-        for pair in pairs:
-            if (
-                re.match(f"^.*/{self.currency}$", pair)
-                and Market.exchange.markets[pair]["active"]
-            ):
-                valid_pairs.append(pair)
-        self.logging.info(f"Active pairs: {valid_pairs}")
-        return valid_pairs
-
-    async def __fetch_delist_pairs(self):
-        delist_pairs = []
-        try:
-            pairs = await Market.exchange.sapi_get_spot_delist_schedule()
-            for pair in pairs[0]["symbols"]:
-                if re.match(f"^.*{self.currency}$", pair):
-                    delist_pairs.append(pair)
-            self.logging.info(f"Delisting pairs: {delist_pairs}")
-            return delist_pairs
-        except ccxt.NetworkError as e:
-            Market.logging.error(
-                f"Error fetching delisting data from Exchange due to a network error: {e}"
-            )
-        except ccxt.ExchangeError as e:
-            Market.logging.error(
-                f"Error fetching delisting data from Exchange due to an exchange error: {e}"
-            )
-        except Exception as e:
-            Market.logging.error(
-                f"Error fetching delisting data from Exchange. Cause: {e}"
-            )
-
-    async def manage_symbols(self):
-        while Market.status:
-            delisted_pairs = await self.__fetch_delist_pairs()
-            active_pairs = await self.__fetch_active_pairs()
-            # add active pairs
-            if active_pairs:
-                for pair in active_pairs:
-                    await self.add_symbol(pair)
-            # remove delisted pairs
-            if delisted_pairs:
-                for pair in delisted_pairs:
-                    pair = pair.split(self.currency)[0]
-                    pair = f"{pair}/{self.currency}"
-                    await self.remove_symbol(pair)
-            await asyncio.sleep(600)
 
     async def watch_tickers(self):
         last_candles = {}
@@ -280,7 +225,7 @@ class Market:
                         continue
                     except ccxt.ExchangeError as e:
                         Market.logging.error(
-                            f"Error watching historical data from Exchange due to an exchange error: {e}"
+                            f"Error watching websocket data from Exchange due to an exchange error: {e}"
                         )
                         continue
                     except Exception as e:

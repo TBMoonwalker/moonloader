@@ -148,6 +148,10 @@ class Data:
             df = df.set_index("timestamp")
 
             # Resample to the configured timerange
+            if "m" in timerange:
+                interval, range = timerange.split("m")
+                timerange = f"{interval}Min"
+
             df_resample = df.resample(timerange).agg(
                 {
                     "open": "first",

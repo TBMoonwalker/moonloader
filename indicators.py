@@ -1,6 +1,6 @@
 import pandas as pd
-import pandas_ta as ta
 import numpy as np
+import talib
 
 from data import Data
 from datetime import datetime, timedelta
@@ -67,7 +67,10 @@ class Indicators:
             else:
                 df_raw = df
             df = self.data.resample_data(df_raw, timerange)
-            ema = df.ta.ema(length=length)
+            print(df)
+            ema = talib.EMA(df["close"], timeperiod=length)
+            # ema = df.ta.ema(length=length)
+            print(ema)
             ema_slope = ema.diff()
             ema_last_slope = ema_slope.dropna().iloc[-1]
             if ema_last_slope:
@@ -89,7 +92,8 @@ class Indicators:
         try:
             if df is None:
                 df = await self.data.get_data_for_pair(symbol, timerange, length)
-            rsi = df.ta.rsi(length=length)
+            rsi = talib.RSI(df["close"], timeperiod=length)
+            # rsi = df.ta.rsi(length=length)
             rsi_slope = rsi.diff()
             rsi_last_slope = rsi_slope.dropna().iloc[-1]
             if rsi_last_slope:
@@ -114,7 +118,8 @@ class Indicators:
             else:
                 df_raw = df
             df = self.data.resample_data(df_raw, timerange)
-            rsi = df.ta.rsi(length=length).dropna().iloc[-1]
+            rsi = talib.RSI(df["close"], timeperiod=length).dropna().iloc[-1]
+            # rsi = df.ta.rsi(length=length).dropna().iloc[-1]
         except:
             rsi = ""
         return {"status": rsi}
@@ -162,7 +167,8 @@ class Indicators:
         df = self.data.resample_data(df_raw, timerange)
 
         try:
-            ema = df.ta.ema(length=length)
+            ema = talib.EMA(df["close"], timeperiod=length)
+            # ema = df.ta.ema(length=length)
             ema = ema.dropna().iloc[-1]
         except:
             ema = ""

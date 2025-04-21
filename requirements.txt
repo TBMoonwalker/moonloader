@@ -1,8 +1,9 @@
-ccxt==4.4.43
+ccxt==4.4.75
 quart==0.20.0
 quart-cors==0.8.0
 pandas==2.2.3
-pandas_ta @ git+https://github.com/twopirllc/pandas-ta.git@development
-tortoise-orm==0.22.1
-numpy==1.26.4
+tortoise-orm==0.25.0
+numpy==2.2.5
+ta-lib==0.6.3
 tenacity==9.0.0
+scipy==1.15.2
