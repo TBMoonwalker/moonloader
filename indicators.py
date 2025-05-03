@@ -45,7 +45,7 @@ class Indicators:
             else:
                 df_raw = df
             df = self.data.resample_data(df_raw, timerange)
-            ema = df.ta.ema(length=length)
+            ema = talib.EMA(df["close"], timeperiod=length)
             ema = ema.dropna().iloc[-1]
             close_price = df["close"].dropna().iloc[-1]
             percentage_diff = abs(close_price - ema) / ema * 100
