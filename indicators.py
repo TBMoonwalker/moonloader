@@ -159,7 +159,7 @@ class Indicators:
                 f"EMA Cross cannot be calculated for {symbol}. Cause: {e}"
             )
 
-        return result
+        return {"status": result}
 
     async def calculate_ema(self, df, symbol, timerange, length):
         if df is None:
