@@ -131,27 +131,35 @@ class Indicators:
 
         return {"status": price_action}
 
-    async def calculate_ema_cross(self, df, symbol, timerange):
-        ema_9 = await self.calculate_ema(df, symbol, timerange, 9)
-        ema_50 = await self.calculate_ema(df, symbol, timerange, 50)
-
-        status = ""
-
-        Indicators.logging.debug(f"EMA20: {ema_9}, EMA50: {ema_50}")
+    async def calculate_ema_cross(self, symbol, timerange):
+        result = None
+        df_raw = await self.data.get_data_for_pair(symbol, timerange, 21)
+        df = self.data.resample_data(df_raw, timerange)
+        df["ema_short"] = talib.EMA(df["close"], timeperiod=9)
+        df["ema_long"] = talib.EMA(df["close"], timeperiod=21)
+        df.dropna(subset=["ema_short", "ema_long"], inplace=True)
 
         try:
-            if ema_9["status"] > ema_50["status"]:
-                status = "up"
-            elif ema_9["status"] < ema_50["status"]:
-                status = "down"
-        except:
-            Indicators.logging.info(
-                "EMA Cross cannot be calculated, because we don't have enough history data."
+
+            if (
+                df.iloc[-2]["ema_short"] <= df.iloc[-2]["ema_long"]
+                and df.iloc[-1]["ema_short"] >= df.iloc[-1]["ema_long"]
+            ):
+                result = "up"
+            elif (
+                df.iloc[-2]["ema_short"] >= df.iloc[-2]["ema_long"]
+                and df.iloc[-1]["ema_short"] <= df.iloc[-1]["ema_long"]
+            ):
+                result = "down"
+            else:
+                result = "none"
+
+        except Exception as e:
+            Indicators.logging.error(
+                f"EMA Cross cannot be calculated for {symbol}. Cause: {e}"
             )
 
-        ema_cross = {"status": status}
-
-        return ema_cross
+        return result
 
     async def calculate_ema(self, df, symbol, timerange, length):
         if df is None:
